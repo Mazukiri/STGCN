@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+ENV/
+env.bak/
+
+# Data and Models
+data/
+src/weights/*.pth
+src/weights/*.pt
+*.npy
+
+# IDEs
+.vscode/
+.idea/
+
+# Latex auxiliary files
+report/*.aux
+report/*.log
+report/*.out
+report/*.snm
+report/*.toc
+report/*.nav
+report/*.fls
+report/*.fdb_latexmk
+report/*.synctex.gz
+report/*.bbl
+report/*.blg
+report/*.lof
+report/*.lot
+
+# Gemini
+.gemini/

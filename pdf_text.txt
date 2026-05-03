@@ -1,0 +1,306 @@
+ĐẠI HỌC Quốc Gia Hà Nội
+Trường Đại học Khoa học Tự Nhiên
+KHOA Toán - Cơ - Tin học
+Báo Cáo Bài Tập Lớn
+Môn học: HỌC MÁY
+PHÂN LOẠI VĂN BẢN TIN TỨC BBC SỬ DỤNG CÁC
+PHƯƠNG PHÁP HỌC MÁY VÀ XỬ LÝ NGÔN NGỮ TỰ
+NHIÊN
+Sinh viên thực hiện:
+Mai Hoàng Đức
+MSSV:22001565
+Đặng Xuân Minh Hiếu
+MSSV:24002005Giảng viên hướng dẫn:
+TS. Cao Văn Chung
+Hà Nội, Năm 2025
+
+Lời cảm ơn
+Trong quá trình thực hiện báo cáo này, chúng em xin gửi lời cảm ơn chân thành đến
+ThầyCao Văn Chung , người đã tận tình truyền đạt kiến thức nền tảng về Học máy
+và Xử lý ngôn ngữ tự nhiên, cũng như đưa ra những định hướng quý báu giúp chúng em
+hoàn thành đề tài.
+Chúng em cũng xin cảm ơn các bạn trong lớp đã cùng trao đổi, thảo luận và chia sẻ
+những kinh nghiệm hữu ích trong quá trình xử lý dữ liệu và cài đặt thuật toán.
+Mặc dù đã nỗ lực hết sức để hoàn thiện báo cáo, nhưng do giới hạn về kiến thức và
+thời gian, bài làm khó tránh khỏi những thiếu sót. Chúng em rất mong nhận được những
+ý kiến đóng góp từ thầy/cô và các bạn để có thể hoàn thiện hơn trong các nghiên cứu
+sau này.
+Chúng em xin chân thành cảm ơn!
+Hà Nội, ngày 12 tháng 11 năm 2025
+Mai Hoàng Đức & Đặng Xuân Minh Hiếu
+1
+
+Tóm tắt
+Trong kỷ nguyên số, lượng dữ liệu văn bản khổng lồ được tạo ra mỗi ngày đặt ra nhu cầu
+cấp thiết về việc tổ chức và phân loại tự động. Báo cáo này trình bày một quy trình toàn
+diện để giải quyết bài toán phân loại văn bản (Text Classification) trên bộ dữ liệu tin tức
+BBC News , bao gồm 5 chủ đề: Business, Entertainment, Politics, Sports và Technology.
+Nghiên cứu tập trung vào việc so sánh hiệu quả của các kỹ thuật biểu diễn dữ liệu và
+các thuật toán học máy. Cụ thể:
+•Trích xuất đặc trưng: Sử dụng phương pháp TF-IDF để vector hóa văn bản.
+•Giảm chiều dữ liệu: Áp dụng và so sánh hai kỹ thuật LSA (Latent Semantic
+Analysis) vàPCA (Principal Component Analysis) để nén không gian đặc
+trưng từ 5000 chiều xuống 600 chiều.
+•Phân cụm dữ liệu: Sử dụngK-Means vàGaussian Mixture Model (GMM)
+để khám phá cấu trúc tiềm ẩn của dữ liệu trong không gian giảm chiều.
+•Phân loại: Đánh giá hiệu năng của ba mô hình Multinomial Naive Bayes ,
+Decision Tree vàLogistic Regression .
+Kết quả thực nghiệm cho thấy Logistic Regression trên tập dữ liệu TF-IDF đạt
+hiệu suất vượt trội với độ chính xác 99.1%. Đối với dữ liệu giảm chiều, LSAchứng tỏ
+khả năng bảo toàn ngữ nghĩa tốt hơn PCA, giúp mô hình Logistic Regression duy trì độ
+chính xác 98.65% trong khi giảm thiểu đáng kể chi phí tính toán. Ngoài ra, nghiên cứu
+cũng chỉ ra rằng việc giảm chiều dữ liệu giúp cải thiện mạnh mẽ hiệu suất của mô hình
+Decision Tree (từ 85.59% lên 95.27%).
+Từ khóa: Text Classification, NLP, TF-IDF, LSA, PCA, K-Means, GMM, Logistic
+Regression, BBC News.
+2
+
+Mục lục
+Lời cảm ơn 1
+Tóm tắt 2
+1 Mở đầu 6
+1.1 Đặt vấn đề . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6
+1.2 Mục tiêu đề tài . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6
+1.3 Cấu trúc báo cáo . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 6
+2 Tiền xử lý, làm sạch và phân tích dữ liệu 10
+2.1 Mô tả bộ dữ liệu . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 10
+2.1.1 Nguồn và Mục tiêu . . . . . . . . . . . . . . . . . . . . . . . . . . 10
+2.1.2 Đặc điểm dữ liệu . . . . . . . . . . . . . . . . . . . . . . . . . . . 11
+2.2 Tiền xử lý và làm sạch bộ dữ liệu . . . . . . . . . . . . . . . . . . . . . . 12
+2.2.1 Tiền xử lý bộ dữ liệu . . . . . . . . . . . . . . . . . . . . . . . . . 12
+2.2.2 Làm sạch bộ dữ liệu . . . . . . . . . . . . . . . . . . . . . . . . . 12
+2.3 Phân tích bộ dữ liệu được làm sạch . . . . . . . . . . . . . . . . . . . . . 13
+2.3.1 Phân tích độ dài văn bản . . . . . . . . . . . . . . . . . . . . . . . 13
+2.3.2 Biểu đồ Word Cloud . . . . . . . . . . . . . . . . . . . . . . . . . 16
+3 Trích xuất đặc trưng với TF-IDF 17
+3.1 Nội dung phương pháp . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17
+3.2 Ma trận Term-Document . . . . . . . . . . . . . . . . . . . . . . . . . . . 17
+3.3 Bộ dữ liệu được trích xuất bởi TF-IDF . . . . . . . . . . . . . . . . . . . 19
+4 Giảm chiều dữ liệu 21
+4.1 Phương pháp Principal Component Analysis (PCA) . . . . . . . . . . . . 21
+4.1.1 Nội dung phương pháp . . . . . . . . . . . . . . . . . . . . . . . . 21
+4.1.2 Thách thức khi áp dụng PCA cho văn bản . . . . . . . . . . . . . 22
+4.2 Phương pháp Latent Semantic Analysis (LSA) . . . . . . . . . . . . . . . 23
+4.2.1 Nội dung phương pháp . . . . . . . . . . . . . . . . . . . . . . . . 23
+4.2.2 Khai triển kì dị rút gọn . . . . . . . . . . . . . . . . . . . . . . . 23
+3
+
+4.2.3 Bộ dữ liệu giảm chiều bởi LSA . . . . . . . . . . . . . . . . . . . 24
+4.2.4 Phân tích chủ đề tiềm ẩn (BBC) . . . . . . . . . . . . . . . . . . 24
+5 Phân cụm dữ liệu 26
+5.1 Khái quát quá trình phân cụm . . . . . . . . . . . . . . . . . . . . . . . . 26
+5.2 Phương pháp phân cụm K-Means . . . . . . . . . . . . . . . . . . . . . . 26
+5.2.1 Cơ sở lý thuyết và Thiết lập thực nghiệm . . . . . . . . . . . . . . 26
+5.2.2 Kết quả thực nghiệm . . . . . . . . . . . . . . . . . . . . . . . . . 27
+5.3 Phương pháp phân cụm Gaussian Mixture Model (GMM) . . . . . . . . 27
+5.3.1 Cơ sở lý thuyết và Thiết lập thực nghiệm . . . . . . . . . . . . . . 27
+5.3.2 Kết quả thực nghiệm . . . . . . . . . . . . . . . . . . . . . . . . . 28
+5.4 Tổng kết chương . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 28
+6 Khái quát quá trình phân loại 30
+Khái quát quá trình phân loại 30
+Các bộ dữ liệu được sử dụng . . . . . . . . . . . . . . . . . . . . . . . . . . . . 30
+Phân chia dữ liệu . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 30
+Thang đo đánh giá . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 31
+7 Phân loại bằng mô hình Multinomial Naive Bayes 32
+7.1 Cơ sở lý thuyết . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 32
+7.2 Quy trình thực nghiệm và Xử lý dữ liệu âm . . . . . . . . . . . . . . . . 32
+7.3 Kết quả và Đánh giá . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 33
+8 Phân loại bằng mô hình Decision Tree 35
+8.1 Cơ sở lý thuyết . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 35
+8.2 Quy trình thực nghiệm . . . . . . . . . . . . . . . . . . . . . . . . . . . . 35
+8.3 Kết quả và Đánh giá . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 36
+9 Phân loại bằng mô hình Logistic Regression 38
+9.1 Cơ sở lý thuyết . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 38
+9.2 Quy trình thực nghiệm . . . . . . . . . . . . . . . . . . . . . . . . . . . . 38
+9.3 Kết quả và Đánh giá . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 39
+10 Phân loại bằng mô hình Random Forest 41
+10.1 Cơ sở lý thuyết . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 41
+10.2 Quy trình thực nghiệm . . . . . . . . . . . . . . . . . . . . . . . . . . . . 42
+10.3 Kết quả và Đánh giá . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 42
+4
+
+11 Phân loại bằng mô hình AdaBoost 44
+11.1 Cơ sở lý thuyết . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 44
+11.2 Quy trình thực nghiệm . . . . . . . . . . . . . . . . . . . . . . . . . . . . 44
+11.3 Kết quả và Đánh giá . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 45
+12 Phân loại bằng mô hình XGBoost 46
+12.1 Cơ sở lý thuyết . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 46
+12.2 Quy trình thực nghiệm . . . . . . . . . . . . . . . . . . . . . . . . . . . . 46
+12.3 Kết quả và Đánh giá . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 47
+13 Phân loại bằng mô hình LightGBM 48
+13.1 Cơ sở lý thuyết . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 48
+13.2 Quy trình thực nghiệm . . . . . . . . . . . . . . . . . . . . . . . . . . . . 48
+13.3 Kết quả và Đánh giá . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 49
+14 Kết luận và Đánh giá tổng thể 50
+14.1 Tóm tắt kết quả thực nghiệm . . . . . . . . . . . . . . . . . . . . . . . . 50
+14.2 Phân tích chuyên sâu . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 51
+14.2.1 Về Mô hình phân loại . . . . . . . . . . . . . . . . . . . . . . . . . 52
+14.2.2 Về Phương pháp trích xuất đặc trưng . . . . . . . . . . . . . . . . 52
+14.3 Kết luận chung . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 52
+14.4 Hướng phát triển . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 53
+5
+
+Chương 1
+Mở đầu
+1.1 Đặt vấn đề
+Sự bùng nổ của thông tin trực tuyến, đặc biệt là các bài báo và tin tức điện tử, khiến
+việc quản lý và tìm kiếm thông tin trở nên khó khăn. Việc phân loại thủ công không còn
+khả thi do tốn kém thời gian và nhân lực. Do đó, phát triển các hệ thống phân loại văn
+bản tự động sử dụng Học máy (Machine Learning) là một yêu cầu cấp thiết. Bài toán
+đặt ra là làm thế nào để máy tính có thể "hiểu"và gán nhãn chủ đề chính xác cho một
+bài báo dựa trên nội dung của nó.
+1.2 Mục tiêu đề tài
+Báo cáo này hướng tới các mục tiêu sau:
+•Xây dựng một quy trình xử lý ngôn ngữ tự nhiên (NLP) hoàn chỉnh từ tiền xử lý,
+trích xuất đặc trưng đến mô hình hóa.
+•Khám phá cấu trúc ẩn của dữ liệu văn bản thông qua các kỹ thuật phân cụm
+(Clustering).
+•So sánh hiệu quả của các phương pháp giảm chiều dữ liệu (PCA vs LSA) trong
+việc bảo toàn thông tin ngữ nghĩa.
+•Đánh giá và lựa chọn mô hình phân loại tối ưu cho bộ dữ liệu tin tức BBC.
+1.3 Cấu trúc báo cáo
+Báo cáo được chia thành 9 chương:
+•Chương 1: Mở đầu.
+6
+
+•Chương 2: Tiền xử lý, làm sạch và phân tích dữ liệu.
+•Chương 3: Trích xuất đặc trưng với TF-IDF.
+•Chương 4: Giảm chiều dữ liệu (PCA & LSA).
+•Chương 5: Phân cụm dữ liệu (K-Means & GMM).
+•Chương 6 - 8: Phân loại bằng các mô hình Multinomial NB, Decision Tree và
+Logistic Regression.
+•Chương 9: Kết luận và đánh giá tổng thể.
+7
+
+Danh sách hình vẽ
+2.1 Phân bố số lượng bài báo cáo theo chuyên mục . . . . . . . . . . . . . . 11
+2.2 Phân bố số lượng văn bản theo nhãn. . . . . . . . . . . . . . . . . . . . . 14
+2.3 Phân bố độ dài văn bản (số từ). . . . . . . . . . . . . . . . . . . . . . . . 14
+2.4 Boxplot độ dài văn bản theo nhãn . . . . . . . . . . . . . . . . . . . . . . 15
+2.5 Độ dài trung bình theo nhãn . . . . . . . . . . . . . . . . . . . . . . . . . 15
+2.6 Top 20 từ xuất hiện nhiều nhất . . . . . . . . . . . . . . . . . . . . . . . 15
+2.7 Word Cloud - Toàn bộ dữ liệu . . . . . . . . . . . . . . . . . . . . . . . . 16
+2.8 Word Cloud - Phân chia theo chủ đề . . . . . . . . . . . . . . . . . . . . 16
+3.1 Kết quả trích xuất đặc trưng TF-IDF . . . . . . . . . . . . . . . . . . . . 20
+4.1 Minh họa PCA tìm các trục (thành phần chính) mới để tối đa hóa phương
+sai. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22
+4.2 Trực quan hóa kết quả sau khi giảm chiều . . . . . . . . . . . . . . . . . 25
+14.1 Biểu đồ so sánh hiệu năng (Accuracy) giữa các mô hình và phương pháp
+xử lý dữ liệu. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 51
+14.2 Biểu đồ so sánh hiệu năng (F1 Score) giữa các mô hình và phương pháp
+xử lý dữ liệu. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 51
+8
+
+Danh sách bảng
+2.1 Một vài mẫu văn bản và lớp của chúng trong bộ dữ liệu. . . . . . . . . . 11
+3.1 Giải thích về trọng số TF-IDF với các kết hợp giá trị TF và IDF khác nhau. 19
+4.1 Một vài chủ đề tiềm ẩn và các Tokens đại diện cho chúng (BBC). . . . . 24
+5.1 Kết quả đánh giá mô hình K-Means. . . . . . . . . . . . . . . . . . . . . 27
+5.2 Kết quả đánh giá mô hình GMM (Tied Covariance). . . . . . . . . . . . 28
+7.1 Kết quả thực nghiệm mô hình Multinomial Naive Bayes (dựa trên output
+thực tế). . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 33
+8.1 Kết quả thực nghiệm mô hình Decision Tree. . . . . . . . . . . . . . . . . 36
+9.1 Kết quả thực nghiệm mô hình Logistic Regression. . . . . . . . . . . . . 39
+10.1 Kết quả thực nghiệm mô hình Random Forest. . . . . . . . . . . . . . . . 42
+11.1 Kết quả thực nghiệm mô hình AdaBoost. . . . . . . . . . . . . . . . . . . 45
+12.1 Kết quả thực nghiệm mô hình XGBoost. . . . . . . . . . . . . . . . . . . 47
+13.1 Kết quả thực nghiệm mô hình LightGBM. . . . . . . . . . . . . . . . . . 49
+14.1 Bảng tổng hợp độ chính xác (Accuracy) của các mô hình. . . . . . . . . . 50
+9
+
+Chương 2
+Tiền xử lý, làm sạch và phân tích dữ
+liệu
+2.1 Mô tả bộ dữ liệu
+2.1.1 Nguồn và Mục tiêu
+Nguồn bộ dữ liệu: Bộdữliệuđượcsửdụnglà BBCTextClassificationDataset .
+Mô tả: Bộ dữ liệu là một Corpus (tập hợp các văn bản) gồm khoảng 2225 bài báo
+tin tức bằng tiếng Anh, được thu thập từ trang web BBC News trong giai
+đoạn 2004-2005.
+Cấu trúc: Dữ liệu được chứa trong file CSV với hai cột chính: "text"và "labels".
+•Cột "text"chứa nội dung văn bản thô của bài báo.
+•Cột "labels"chứa chuyên mục (nhãn) của bài báo đó. Các nhãn bao gồm
+5 hạng mục: business (kinh doanh), entertainment (giải trí),politics
+(chính trị), sport(thể thao), và tech(công nghệ).
+Mục tiêu: Khám phá, phân tích và xây dựng mô hình học máy có khả năng phân
+loại văn bản (text classification) để dự đoán chính xác chuyên mục của một
+bài báo mới dựa trên nội dung của nó.
+10
+
+Hình 2.1: Phân bố số lượng bài báo cáo theo chuyên mục
+Bảng 2.1: Một vài mẫu văn bản và lớp của chúng trong bộ dữ liệu.
+text labels
+"shares slide as budget fails to lift market... investors were left
+unimpressed by..."business
+"us musician wins top uk prize... rapper kanye west has been named
+best international..."entertainment
+"blair prepares for tough eu summit... tony blair is heading for brussels
+for what is expected..."politics
+"england coach faces selection dilemma... andy robinson has warned
+his england players..."sport
+"apple launches search tool... apple has moved into the internet search
+arena with the..."tech
+2.1.2 Đặc điểm dữ liệu
+Tương tự như các bài toán xử lý văn bản khác, dữ liệu thô chứa nhiều yếu tố gây nhiễu.
+Tuy nhiên, khác với dữ liệu từ mạng xã hội (thường chứa tiếng lóng, lỗi chính tả, viết
+tắt), dữ liệu tin tức từ BBC có đặc điểm:
+•Ngôn ngữ trang trọng: Văn phong báo chí, có cấu trúc câu cú rõ ràng và từ
+vựng phong phú.
+11
+
+•Ít lỗi chính tả: Dữ liệu đã qua biên tập nên sạch hơn nhiều so với dữ liệu do người
+dùng tạo.
+•Nhiễu chính: Các yếu tố cần xử lý bao gồm dấu câu, các ký tự đặc biệt, chữ số
+(như năm, số liệu thống kê), và sự biến thể của từ (ví dụ: "invest", "investing",
+"investor").
+Việc chuẩn hóa và làm sạch bộ dữ liệu này là bước bắt buộc để các mô hình học máy
+có thể học được các đặc trưng quan trọng.
+2.2 Tiền xử lý và làm sạch bộ dữ liệu
+Quá trình này nhằm mục đích chuẩn hóa văn bản thô, loại bỏ nhiễu và giảm độ phức tạp
+của từ vựng để trích xuất đặc trưng hiệu quả hơn.
+2.2.1 Tiền xử lý bộ dữ liệu
+Đây là các bước chuẩn hóa cơ bản, áp dụng chung cho hầu hết các bài toán NLP:
+•Chuyển đổi về chữ thường (Lowercase): Đồng nhất các từ (ví dụ: "Market"và
+"market"được coi là một).
+•Loại bỏ ký tự đặc biệt, dấu câu và chữ số: Xóa bỏ các ký tự như
+!"#$%&’()*+,-./:;<=>?@[\]_^‘{|}˜ và các chữ số vì chúng thường không mang
+nhiều ý nghĩa để phân loại chủ đề bài báo.
+•Chuẩn hóa khoảng trắng: Đưa nhiều khoảng trắng liên tiếp về một dấu cách
+duy nhất.
+•Loại bỏ các mẫu trùng lặp: Đảm bảo mỗi bài báo là duy nhất trong bộ dữ liệu.
+2.2.2 Làm sạch bộ dữ liệu
+Sau bước tiền xử lý, quá trình làm sạch tập trung vào việc tinh chỉnh các tokens để tối
+ưu hóa cho việc trích xuất đặc trưng.
+Trước tiên, ta cần thống nhất một số thuật ngữ quan trọng trong NLP:
+Tokens: Đặc trưng mang thông tin từ văn bản. Trong báo cáo này, Token được định
+nghĩa là một từ (một chuỗi ký tự được phân tách bởi khoảng trắng/dấu cách).
+Stop-words: Các Tokens phổ biến trong tiếng Anh nhưng không mang nhiều ý nghĩa
+ngữ cảnh để phân biệt chủ đề, ví dụ: "the", "is", "a", "an", "in", "on", "at".
+12
+
+Lemmatization: Kỹ thuật đưa một từ về dạng gốc (lemma) dựa trên ý nghĩa và ngữ
+pháp. Ví dụ: "investing> "invest", "shares> "share", "was> "be".
+Dưới đây là tóm tắt các bước làm sạch bộ dữ liệu được thực hiện:
+•Loại bỏ Stop-words: Sử dụng một danh sách các stop-words phổ biến của tiếng
+Anh (ví dụ: từ thư viện NLTK hoặc SpaCy) để loại bỏ các từ không mang nhiều
+giá trị ngữ nghĩa, giúp mô hình tập trung vào các từ khóa quan trọng.
+•Áp dụng Lemmatization: Chuẩn hóa các biến thể của từ về dạng gốc. Điều này
+giúpgiảm kích thước của tập từ vựng (vocabulary) một cách đáng kể, gộp các
+từ có cùng gốc ngữ nghĩa lại làm một.
+•Loại bỏ các văn bản quá dài (Outliers): Dựa trên phân tích sơ bộ, phần lớn
+các bài báo có độ dài dưới 1000 từ. Chỉ có 24 văn bản (khoảng 1%) dài hơn 1000
+từ. Chúng ta sẽ loại bỏ các văn bản này vì chúng có thể là các outlier hoặc các tài
+liệu tổng hợp đặc biệt, không mang tính đại diện cho một bài báo thông thường.
+2.3 Phân tích bộ dữ liệu được làm sạch
+Sau khi thực hiện các bước trên, chúng ta thu được "bộ Corpus sạch"và tiến hành phân
+tích để hiểu rõ hơn về đặc điểm dữ liệu.
+2.3.1 Phân tích độ dài văn bản
+Biểu đồ dưới đây trực quan hóa phân bố độ dài (số lượng tokens) của các văn bản trước
+và sau khi làm sạch. Ta có thể thấy rõ các văn bản outlier (> 1000 từ) đã bị loại bỏ, và
+phân bố chung của dữ liệu trở nên đồng đều hơn.
+13
+
+Hình 2.2: Phân bố số lượng văn bản theo nhãn.
+Hình 2.3: Phân bố độ dài văn bản (số từ).
+14
+
