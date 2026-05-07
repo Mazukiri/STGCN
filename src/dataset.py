@@ -3,7 +3,7 @@ import torch
 import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
-from src.data_processing.normalization import LandmarkNormalizer
+from data_processing.normalization import LandmarkNormalizer
 
 class WLASLDataset(Dataset):
     def __init__(self, metadata_path, landmarks_dir, split='train', target_frames=60, return_graph=False):
