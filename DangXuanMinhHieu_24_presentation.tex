@@ -1,0 +1,156 @@
+\documentclass[aspectratio=169]{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage[T5]{fontenc}
+\usepackage[vietnamese]{babel}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{hyperref}
+\usepackage{caption}
+
+\usetheme{Madrid}
+\usecolortheme{default}
+\setbeamertemplate{footline}[frame number]
+\setbeamertemplate{navigation symbols}{}
+
+\title[Nhận diện Ngôn ngữ Ký hiệu bằng ST-GCN]{NHẬN DIỆN TỪ VỰNG NGÔN NGỮ KÝ HIỆU SỬ DỤNG MẠNG NƠ-RON ĐỒ THỊ KHÔNG GIAN - THỜI GIAN (ST-GCN)}
+\author[Nhóm 24]{
+    \small
+    \textbf{Sinh viên thực hiện:}
+    Đặng Xuân Minh Hiếu (24002005),
+    Mai Hoàng Đức (22001565),
+    Lê Quý Công (22001550)\\
+    \vspace{0.1cm}
+    \textbf{Giảng viên hướng dẫn:}
+    TS. Cao Văn Chung
+}
+\institute[ĐHKHTN]{Khoa Toán - Cơ - Tin học \\ Trường Đại học Khoa học Tự nhiên}
+\date{Hà Nội, Năm 2026}
+
+\begin{document}
+
+\begin{frame}
+    \titlepage
+\end{frame}
+
+\begin{frame}{Nội dung trình bày}
+    \tableofcontents[hideallsubsections]
+\end{frame}
+
+% ==========================================
+\section{1. Tổng quan và Cơ sở Lý thuyết}
+% ==========================================
+\begin{frame}{Tính cấp thiết và Thách thức}
+    \begin{itemize}
+        \item \textbf{Cấp thiết:} Rào cản giao tiếp của cộng đồng người khiếm thính.
+        \item \textbf{Thách thức RGB:} Nhiễu nền, góc máy, chi phí tính toán cao.
+        \item \textbf{Giải pháp Skeleton:} Chống nhiễu, nhẹ, ổn định hình học.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Trích xuất Đặc trưng MediaPipe Tasks API}
+    \begin{columns}
+        \begin{column}{0.5\textwidth}
+            \begin{itemize}
+                \item Sử dụng \textbf{Pose \& Hand Landmarker}.
+                \item Trích xuất $\mathbf{V=75}$ điểm mốc:
+                \begin{itemize}
+                    \item 33 điểm Pose.
+                    \item 21 điểm Tay trái.
+                    \item 21 điểm Tay phải.
+                \end{itemize}
+                \item Input Tensor: $\mathbf{X} \in \mathbb{R}^{3 \times T \times 75}$.
+            \end{itemize}
+        \end{column}
+        \begin{column}{0.5\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[height=0.6\textheight]{report/images/skeleton_3d.png}
+                \caption{Cấu trúc liên kết Khung xương}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ==========================================
+\section{2. Phương pháp đề xuất và Kiến trúc hệ thống}
+% ==========================================
+\begin{frame}{Phân tích Dữ liệu WLASL-100}
+    \begin{columns}
+        \begin{column}{0.48\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=\textwidth]{report/images/dataset_pie.png}
+                \caption{Phân chia Train/Val/Test}
+            \end{figure}
+        \end{column}
+        \begin{column}{0.48\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=\textwidth]{report/images/frames_histogram.png}
+                \caption{Phân bố độ dài chuỗi}
+            \end{figure}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Kiến trúc ST-GCN Cải tiến}
+    \begin{itemize}
+        \item \textbf{Chiều sâu:} Nâng cấp lên 6 ST-GCN Blocks.
+        \item \textbf{Adaptive Graph:} Ma trận kề động có thể học được.
+        \item \textbf{Quy trình:}
+        \begin{enumerate}
+            \item Spatial GCN: Học hình dáng tay.
+            \item Temporal CNN: Học chuyển động (Kernel=9).
+        \end{enumerate}
+        \item \textbf{Kỹ thuật:} Residual connection, Batch Norm, Dropout.
+    \end{itemize}
+\end{frame}
+
+% ==========================================
+\section{3. Thực nghiệm và Kết quả}
+% ==========================================
+\begin{frame}{Kết quả Thực nghiệm}
+    \begin{columns}
+        \begin{column}{0.6\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=\textwidth]{src/performance_bar_chart.png}
+                \caption{Chỉ số Accuracy trên tập Test}
+            \end{figure}
+        \end{column}
+        \begin{column}{0.35\textwidth}
+            \small
+            \textbf{Chỉ số ST-GCN Thực tế:}
+            \begin{itemize}
+                \item \textbf{Top-1 Accuracy:} $67.79\%$
+                \item \textbf{Top-5 Accuracy:} $88.0\%$
+            \end{itemize}
+            \vspace{0.2cm}
+            \textit{Mô hình đạt độ chính xác ổn định và có khả năng nhận diện tốt 100 từ vựng.}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Ma trận Nhầm lẫn}
+    \begin{figure}
+        \centering
+        \includegraphics[height=0.6\textheight]{src/confusion_matrix.png}
+        \caption{Confusion Matrix (100 classes)}
+    \end{figure}
+\end{frame}
+
+\begin{frame}{Kết luận}
+    \begin{itemize}
+        \item Xây dựng thành công hệ thống WSLR thời gian thực.
+        \item ST-GCN với Adaptive Graph mang lại hiệu quả vượt trội.
+        \item Độ chính xác Top-5 đạt 88.0\%, sẵn sàng ứng dụng thực tế.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}
+    \centering
+    \Huge \textbf{Cảm ơn Thầy và các bạn!}
+\end{frame}
+
+\end{document}

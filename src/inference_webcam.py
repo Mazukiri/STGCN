@@ -107,11 +107,13 @@ def main():
     print("[*] MediaPipe detectors ready.")
 
     TARGET_FRAMES = 60
+    RESET_THRESHOLD = 15
     frames_queue = deque(maxlen=TARGET_FRAMES)
     normalizer = LandmarkNormalizer(target_frames=TARGET_FRAMES)
 
     current_prediction = "Waiting..."
     current_confidence = 0.0
+    no_detection_count = 0
 
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
@@ -150,8 +152,12 @@ def main():
             )
 
         if np.sum(landmarks[:33]) == 0:
-            frames_queue.clear()
+            no_detection_count += 1
+            if no_detection_count >= RESET_THRESHOLD:
+                frames_queue.clear()
+                no_detection_count = 0
         else:
+            no_detection_count = 0
             frames_queue.append(landmarks)
 
         if len(frames_queue) == TARGET_FRAMES:
