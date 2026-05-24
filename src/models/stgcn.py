@@ -6,37 +6,35 @@ class SpatialGraphConv(nn.Module):
     """Lớp Tích chập Không gian trên Đồ thị"""
     def __init__(self, in_channels, out_channels):
         super(SpatialGraphConv, self).__init__()
-        # Conv2d với kernel_size 1x1 hoạt động như một lớp Linear trên số channel
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1))
-        
+
     def forward(self, x, A):
-        # x shape: (Batch, Channels, Frames, Nodes)
-        # A shape: (Nodes, Nodes)
+        # x: (Batch, Channels, Frames, Nodes)
+        # A: (Nodes, Nodes)
         x = self.conv(x)
-        
-        # Nhân ma trận dọc theo chiều Nodes (n) bằng einsum
-        # b: batch, c: channels, f: frames, n: nodes, m: nodes in A
         x = torch.einsum('bcfn,nm->bcfm', x, A)
         return x
 
 class STGCNBlock(nn.Module):
     """Một khối cấu trúc ST-GCN tiêu chuẩn"""
-    def __init__(self, in_channels, out_channels, stride=1):
+    def __init__(self, in_channels, out_channels, num_nodes=75, stride=1, dropout_rate=0.5):
         super(STGCNBlock, self).__init__()
-        
-        # 1. GCN: Học mối liên kết không gian giữa các khớp xương (Spatial)
+
+        # Learnable per-block graph correction (zero-init → identical to fixed A at start)
+        self.A_adapt = nn.Parameter(torch.zeros(num_nodes, num_nodes))
+
+        # 1. GCN: Spatial
         self.sgcn = SpatialGraphConv(in_channels, out_channels)
-        
-        # 2. TCN: Học chuyển động của khớp xương qua thời gian (Temporal)
-        # Kernel=9 cho phép nhìn bao quát 9 khung hình liền nhau
-        self.tcn = nn.Conv2d(out_channels, out_channels, kernel_size=(9, 1), 
+        self.bn_gcn = nn.BatchNorm2d(out_channels)
+
+        # 2. TCN: Temporal (kernel=9, 9 consecutive frames)
+        self.tcn = nn.Conv2d(out_channels, out_channels, kernel_size=(9, 1),
                              stride=(stride, 1), padding=(4, 0))
-        
+
         self.relu = nn.ReLU(inplace=True)
         self.bn = nn.BatchNorm2d(out_channels)
-        self.dropout = nn.Dropout(0.5)
-        
-        # Kết nối phần dư (Residual Connection) giúp gradient lan truyền tốt hơn
+        self.dropout = nn.Dropout(dropout_rate)
+
         if in_channels == out_channels and stride == 1:
             self.residual = lambda x: x
         else:
@@ -44,58 +42,55 @@ class STGCNBlock(nn.Module):
                 nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=(stride, 1)),
                 nn.BatchNorm2d(out_channels)
             )
-            
+
     def forward(self, x, A):
+        A_eff = A + self.A_adapt
         res = self.residual(x)
-        x = self.sgcn(x, A)
+        x = self.sgcn(x, A_eff)
+        x = self.bn_gcn(x)
         x = self.relu(x)
         x = self.tcn(x)
         x = self.bn(x)
-        x += res # Cộng residual
+        x += res
         x = self.relu(x)
         x = self.dropout(x)
         return x
 
 class STGCN(nn.Module):
     """Mạng ST-GCN hoàn chỉnh cho bộ dữ liệu WLASL"""
-    def __init__(self, in_channels=3, num_classes=100):
+    def __init__(self, in_channels=3, num_classes=100, num_nodes=75):
         super(STGCN, self).__init__()
-        
-        # Khởi tạo ma trận liên kết từ lớp Graph
+
         self.graph = Graph()
-        # Đăng ký ma trận A như một buffer của mô hình để tự động đẩy lên GPU
         A = torch.tensor(self.graph.A, dtype=torch.float32)
         self.register_buffer('A', A)
-        
-        # Chuẩn hóa dữ liệu đầu vào (Batch Norm trên Không gian x Kênh)
-        self.data_bn = nn.BatchNorm1d(in_channels * 75)
-        
-        # Xếp chồng các khối STGCN
-        self.layer1 = STGCNBlock(in_channels, 64)
-        self.layer2 = STGCNBlock(64, 128, stride=2) # stride=2 giúp giảm một nửa số lượng frames
-        self.layer3 = STGCNBlock(128, 256, stride=2)
-        
-        # Lớp phân loại cuối cùng
+
+        self.data_bn = nn.BatchNorm1d(in_channels * num_nodes)
+
+        # 6 blocks: (64×2) → (128×2, stride=2) → (256×2, stride=2)
+        # Temporal: 60 → 60 → 30 → 30 → 15 → 15
+        self.layer1 = STGCNBlock(in_channels, 64,  num_nodes=num_nodes, dropout_rate=0.1)
+        self.layer2 = STGCNBlock(64,          64,  num_nodes=num_nodes, dropout_rate=0.1)
+        self.layer3 = STGCNBlock(64,          128, num_nodes=num_nodes, stride=2, dropout_rate=0.25)
+        self.layer4 = STGCNBlock(128,         128, num_nodes=num_nodes, dropout_rate=0.25)
+        self.layer5 = STGCNBlock(128,         256, num_nodes=num_nodes, stride=2, dropout_rate=0.5)
+        self.layer6 = STGCNBlock(256,         256, num_nodes=num_nodes, dropout_rate=0.5)
+
         self.fc = nn.Linear(256, num_classes)
-        
+
     def forward(self, x):
-        # x shape đầu vào: (Batch, Channels=3, Frames=60, Nodes=75)
         N, C, T, V = x.size()
-        
-        # Chuẩn hóa đầu vào
+
         x = x.permute(0, 3, 1, 2).contiguous().view(N, V * C, T)
         x = self.data_bn(x)
         x = x.view(N, V, C, T).permute(0, 2, 3, 1).contiguous()
-        
-        # Lan truyền qua mạng đồ thị
+
         x = self.layer1(x, self.A)
         x = self.layer2(x, self.A)
         x = self.layer3(x, self.A)
-        
-        # Global Average Pooling: Trung bình hóa mọi dữ liệu trên chiều Không gian (V) và Thời gian (T)
-        # Để nén lại thành 1 vector đặc trưng duy nhất (kích thước 256) cho mỗi video
+        x = self.layer4(x, self.A)
+        x = self.layer5(x, self.A)
+        x = self.layer6(x, self.A)
+
         x = x.mean(dim=-1).mean(dim=-1)
-        
-        # Dự đoán phân loại
-        out = self.fc(x)
-        return out
+        return self.fc(x)

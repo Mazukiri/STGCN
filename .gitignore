@@ -53,3 +53,6 @@ report/*.lot
 
 # Gemini
 .gemini/
+
+# Credentials
+secrets/

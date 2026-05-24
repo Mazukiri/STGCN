@@ -1,0 +1,15 @@
+[project]
+name = "wlasl-stgcn"
+version = "0.1.0"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "opencv-python>=4.8.0",
+    "mediapipe>=0.10.0",
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "scikit-learn>=1.3.0",
+    "torch>=2.0.0",
+    "matplotlib>=3.7.0",
+    "tqdm>=4.65.0",
+    "kaggle>=1.6.0",
+]
