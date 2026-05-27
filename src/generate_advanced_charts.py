@@ -15,8 +15,8 @@ def main():
     os.makedirs(output_dir, exist_ok=True)
     
     # 1. Biểu đồ tròn phân bố Train/Val/Test
-    splits = ['Train (1442)', 'Validation (338)', 'Test (258)']
-    counts = [1442, 338, 258]
+    splits = ['Train (2757)', 'Validation (655)', 'Test (764)']
+    counts = [2757, 655, 764]
     plt.figure(figsize=(8, 8))
     plt.pie(counts, labels=splits, autopct='%1.1f%%', colors=['#66b3ff','#99ff99','#ff9999'], startangle=140, textprops={'fontsize': 14})
     plt.title('Tỷ lệ phân chia Dữ liệu WLASL-100', fontsize=16, fontweight='bold')

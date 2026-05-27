@@ -173,7 +173,7 @@ def main():
                 probs = torch.softmax(model(input_tensor), dim=1)
                 confidence, predicted_class = torch.max(probs, 1)
                 current_confidence = confidence.item()
-                if current_confidence > 0.6:
+                if current_confidence > 0.4:
                     current_prediction = idx_to_label[predicted_class.item()]
                 else:
                     current_prediction = "..."

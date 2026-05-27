@@ -10,24 +10,25 @@ def plot_training_curves(history_lstm_path, history_stgcn_path, output_dir):
     with open(history_stgcn_path, 'r') as f:
         h_stgcn = json.load(f)
         
-    epochs = range(1, len(h_lstm['train_acc']) + 1)
-    
+    lstm_epochs  = range(1, len(h_lstm['val_acc']) + 1)
+    stgcn_epochs = range(1, len(h_stgcn['val_acc']) + 1)
+
     plt.figure(figsize=(14, 6))
-    
+
     # Biểu đồ Accuracy
     plt.subplot(1, 2, 1)
-    plt.plot(epochs, h_lstm['val_acc'], 'b--', label='LSTM Val Acc')
-    plt.plot(epochs, h_stgcn['val_acc'], 'r-', linewidth=2, label='ST-GCN Val Acc')
+    plt.plot(lstm_epochs,  h_lstm['val_acc'],  'b--', label='LSTM Val Acc')
+    plt.plot(stgcn_epochs, h_stgcn['val_acc'], 'r-', linewidth=2, label='ST-GCN Val Acc')
     plt.title('Validation Accuracy Comparison')
     plt.xlabel('Epochs')
     plt.ylabel('Accuracy (%)')
     plt.legend()
     plt.grid(True)
-    
+
     # Biểu đồ Loss
     plt.subplot(1, 2, 2)
-    plt.plot(epochs, h_lstm['val_loss'], 'b--', label='LSTM Val Loss')
-    plt.plot(epochs, h_stgcn['val_loss'], 'r-', linewidth=2, label='ST-GCN Val Loss')
+    plt.plot(lstm_epochs,  h_lstm['val_loss'],  'b--', label='LSTM Val Loss')
+    plt.plot(stgcn_epochs, h_stgcn['val_loss'], 'r-', linewidth=2, label='ST-GCN Val Loss')
     plt.title('Validation Loss Comparison')
     plt.xlabel('Epochs')
     plt.ylabel('Loss')
@@ -45,37 +46,35 @@ def plot_performance_bars(output_dir):
     (Giả định bạn đã chạy Inference cho cả 2 model. Ở đây mình dùng số liệu mẫu 
     để bạn có ngay biểu đồ bỏ vào slide báo cáo).
     """
-    labels = ['Top-1 Accuracy', 'Top-5 Accuracy', 'F1-Score']
-    
-    # Dữ liệu mẫu (Bạn có thể thay bằng số liệu thực tế sau khi train xong mô hình bằng data thật)
-    lstm_scores = [65.4, 82.1, 63.8]
-    stgcn_scores = [78.6, 91.5, 77.2]
-    
+    labels = ['Top-1 Accuracy', 'Top-5 Accuracy']
+    lstm_scores  = [28.93, 66.49]
+    stgcn_scores = [80.50, 92.67]
+
     x = np.arange(len(labels))
     width = 0.35
-    
+
     fig, ax = plt.subplots(figsize=(10, 6))
-    rects1 = ax.bar(x - width/2, lstm_scores, width, label='Baseline LSTM', color='skyblue')
-    rects2 = ax.bar(x + width/2, stgcn_scores, width, label='ST-GCN', color='salmon')
-    
+    rects1 = ax.bar(x - width/2, lstm_scores,  width, label='Baseline LSTM', color='skyblue')
+    rects2 = ax.bar(x + width/2, stgcn_scores, width, label='ST-GCN (Ours)',  color='salmon')
+
     ax.set_ylabel('Scores (%)', fontsize=12)
     ax.set_title('Performance Comparison on Test Set (WLASL-100)', fontsize=14, fontweight='bold')
     ax.set_xticks(x)
     ax.set_xticklabels(labels, fontsize=12)
     ax.legend(fontsize=12)
-    
-    # Thêm số liệu lên đỉnh các cột
-    def autolabel(rects):
-        for rect in rects:
+
+    def autolabel(rects, scores):
+        for rect, score in zip(rects, scores):
             height = rect.get_height()
-            ax.annotate(f'{height}%',
+            label = f'{score}%' if score > 0 else 'N/A'
+            ax.annotate(label,
                         xy=(rect.get_x() + rect.get_width() / 2, height),
-                        xytext=(0, 3),  # 3 points vertical offset
+                        xytext=(0, 3),
                         textcoords="offset points",
                         ha='center', va='bottom', fontsize=11)
-                        
-    autolabel(rects1)
-    autolabel(rects2)
+
+    autolabel(rects1, lstm_scores)
+    autolabel(rects2, stgcn_scores)
     
     plt.ylim(0, 105)
     plt.tight_layout()

@@ -6,7 +6,9 @@ Run from src/ directory:
 import os
 import torch
 import numpy as np
-from sklearn.metrics import f1_score
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import f1_score, confusion_matrix
 from dataset import get_dataloaders
 from models.stgcn import STGCN
 
@@ -36,7 +38,21 @@ def evaluate_split(model, loader, device):
     top1 = 100.0 * np.sum(all_preds == all_labels) / total
     top5 = 100.0 * correct_top5 / total
     f1   = 100.0 * f1_score(all_labels, all_preds, average="macro", zero_division=0)
-    return top1, top5, f1
+    return top1, top5, f1, all_preds, all_labels
+
+
+def plot_confusion_matrix(all_labels, all_preds, output_path):
+    cm = confusion_matrix(all_labels, all_preds)
+    plt.figure(figsize=(20, 18))
+    sns.heatmap(cm, cmap='Blues', xticklabels=False, yticklabels=False,
+                linewidths=0, cbar=True)
+    plt.title('Confusion Matrix — ST-GCN on WLASL-100 Test Set', fontsize=16)
+    plt.xlabel('Predicted Label', fontsize=12)
+    plt.ylabel('True Label', fontsize=12)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150)
+    plt.close()
+    print(f"[*] Saved confusion matrix to: {output_path}")
 
 
 def main():
@@ -68,9 +84,15 @@ def main():
     model.load_state_dict(torch.load(weights_path, map_location=device))
 
     print("\n=== ST-GCN Evaluation ===")
+    test_preds = test_labels = None
     for name, loader in [("Val", val_loader), ("Test", test_loader)]:
-        top1, top5, f1 = evaluate_split(model, loader, device)
+        top1, top5, f1, preds, labels = evaluate_split(model, loader, device)
         print(f"{name:4s}  Top-1: {top1:.2f}%  Top-5: {top5:.2f}%  Macro-F1: {f1:.2f}%")
+        if name == "Test":
+            test_preds, test_labels = preds, labels
+
+    cm_path = os.path.join(script_dir, "confusion_matrix.png")
+    plot_confusion_matrix(test_labels, test_preds, cm_path)
 
 
 if __name__ == "__main__":
