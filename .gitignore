@@ -37,19 +37,22 @@ src/weights/*.pt
 .idea/
 
 # Latex auxiliary files
-report/*.aux
-report/*.log
-report/*.out
-report/*.snm
-report/*.toc
-report/*.nav
-report/*.fls
-report/*.fdb_latexmk
-report/*.synctex.gz
-report/*.bbl
-report/*.blg
-report/*.lof
-report/*.lot
+*.aux
+*.log
+*.out
+*.snm
+*.toc
+*.nav
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.bbl
+*.blg
+*.lof
+*.lot
 
 # Gemini
 .gemini/
+
+# Credentials
+secrets/

@@ -7,44 +7,45 @@ class LandmarkNormalizer:
     def normalize_spatial(self, frames):
         """
         Chuẩn hóa không gian (Spatial Normalization).
-        Input: numpy array shape (T, 75, 3) (T = frames, 75 = landmarks, 3 = x,y,z)
+        Input: numpy array shape (T, 75, 3)
         Output: numpy array shape (T, 75, 3) đã chuẩn hóa.
+        Vectorized over T to avoid Python-level frame loop.
         """
         if len(frames) == 0:
             return frames
-            
-        normalized_frames = np.zeros_like(frames)
-        
-        for t in range(frames.shape[0]):
-            frame_data = frames[t].copy()
-            
-            # MediaPipe Pose: Mũi (Nose) là index 0
-            nose = frame_data[0]
-            
-            # MediaPipe Pose: Vai phải (Right Shoulder) là index 12, Vai trái (Left Shoulder) là index 11
-            left_shoulder = frame_data[11]
-            right_shoulder = frame_data[12]
-            
-            # Nếu khung hình này không nhận diện được pose (tọa độ 0)
-            if np.all(nose == 0):
-                normalized_frames[t] = frame_data
-                continue
-                
-            # Tịnh tiến gốc tọa độ về Mũi
-            # Chỉ dịch chuyển các điểm không phải là (0,0,0) - tức là các điểm nhận diện được
-            mask = np.any(frame_data != 0, axis=1)
-            frame_data[mask] = frame_data[mask] - nose
-            
-            # Tính khoảng cách giữa 2 vai để scale
-            shoulder_dist = np.linalg.norm(left_shoulder - right_shoulder)
-            
-            # Tránh chia cho 0
-            if shoulder_dist > 1e-5:
-                frame_data[mask] = frame_data[mask] / shoulder_dist
-                
-            normalized_frames[t] = frame_data
-            
-        return normalized_frames
+
+        frames = frames.copy()
+        nose = frames[:, 0, :]              # (T, 3)
+        valid = np.any(nose != 0, axis=1)  # (T,) — frames where pose was detected
+
+        if not valid.any():
+            return frames
+
+        # Mask of detected landmarks per frame: (T, 75, 1) for broadcasting
+        lm_mask = np.any(frames != 0, axis=2, keepdims=True)  # (T, 75, 1)
+
+        # Center on nose for valid frames
+        frames[valid] = np.where(
+            lm_mask[valid],
+            frames[valid] - nose[valid, np.newaxis, :],
+            frames[valid],
+        )
+
+        # Scale by shoulder distance
+        left_shoulder  = frames[:, 11, :]  # (T, 3) — already centered
+        right_shoulder = frames[:, 12, :]  # (T, 3)
+        shoulder_dist = np.linalg.norm(left_shoulder - right_shoulder, axis=1)  # (T,)
+
+        scale_valid = valid & (shoulder_dist > 1e-5)
+        if scale_valid.any():
+            scale = shoulder_dist[scale_valid, np.newaxis, np.newaxis]  # (T_v, 1, 1)
+            frames[scale_valid] = np.where(
+                lm_mask[scale_valid],
+                frames[scale_valid] / scale,
+                frames[scale_valid],
+            )
+
+        return frames
 
     def normalize_temporal(self, frames):
         """

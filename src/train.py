@@ -3,11 +3,17 @@ import json
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from dataset import get_dataloaders
+from torch.utils.data import DataLoader
+from dataset import WLASLDataset
 from models.baseline_lstm import BaselineLSTM
 
 def train():
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    elif torch.backends.mps.is_available():
+        device = torch.device('mps')
+    else:
+        device = torch.device('cpu')
     print(f"[*] Training on device: {device}")
     
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -16,18 +22,18 @@ def train():
     landmarks_dir = os.path.join(processed_dir, "landmarks")
     
     BATCH_SIZE = 32
-    EPOCHS = 2  # Đặt là 2 chỉ để test nhanh, bạn nên đổi thành 50-100 khi train thật
+    EPOCHS = 100
     LEARNING_RATE = 1e-3
     TARGET_FRAMES = 60
     NUM_CLASSES = 100
-    
-    train_loader, val_loader, _ = get_dataloaders(
-        metadata_path, 
-        landmarks_dir, 
-        batch_size=BATCH_SIZE, 
-        target_frames=TARGET_FRAMES,
-        return_graph=False # Dùng LSTM
-    )
+
+    ds_kwargs = dict(metadata_path=metadata_path, landmarks_dir=landmarks_dir,
+                     target_frames=TARGET_FRAMES, return_graph=False)
+    loader_kwargs = dict(batch_size=BATCH_SIZE, num_workers=0, pin_memory=False)
+    train_loader = DataLoader(WLASLDataset(split='train', augment=True, **ds_kwargs),
+                              shuffle=True, **loader_kwargs)
+    val_loader   = DataLoader(WLASLDataset(split='val',   augment=False, **ds_kwargs),
+                              shuffle=False, **loader_kwargs)
     
     model = BaselineLSTM(num_classes=NUM_CLASSES).to(device)
     criterion = nn.CrossEntropyLoss()

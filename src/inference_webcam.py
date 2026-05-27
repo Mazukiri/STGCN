@@ -4,175 +4,195 @@ import torch
 import json
 import numpy as np
 import os
+import time
 from collections import deque
+from mediapipe.tasks import python as mp_python
+from mediapipe.tasks.python import vision as mp_vision
+from mediapipe.tasks.python.vision import drawing_utils as mp_drawing
+from mediapipe.tasks.python.vision import drawing_styles as mp_drawing_styles
+from mediapipe.tasks.python.vision.pose_landmarker import PoseLandmarksConnections
+from mediapipe.tasks.python.vision.hand_landmarker import HandLandmarksConnections
 from models.stgcn import STGCN
 from data_processing.normalization import LandmarkNormalizer
+
 
 def load_label_mapping(mapping_path):
     with open(mapping_path, 'r', encoding='utf-8') as f:
         mapping = json.load(f)
-    # Reverse mapping: index -> label string
     return {v: k for k, v in mapping.items()}
 
-def extract_landmarks(results):
-    """Trích xuất 75 điểm (33 Pose + 21 Left Hand + 21 Right Hand)"""
+
+def extract_landmarks(image_bgr, pose_det, hand_det, timestamp_ms):
+    """Extract (75, 3) landmarks — matches 02_extract_landmarks.py pipeline exactly.
+    Returns (landmarks_75x3, pose_result, hand_result)."""
+    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+    mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
+
     pose = np.zeros((33, 3))
-    lh = np.zeros((21, 3))
-    rh = np.zeros((21, 3))
-    
-    if results.pose_landmarks:
-        for i, lm in enumerate(results.pose_landmarks.landmark):
+    lh   = np.zeros((21, 3))
+    rh   = np.zeros((21, 3))
+
+    pr = pose_det.detect_for_video(mp_img, timestamp_ms)
+    if pr.pose_landmarks:
+        for i, lm in enumerate(pr.pose_landmarks[0]):
             pose[i] = [lm.x, lm.y, lm.z]
-            
-    if results.left_hand_landmarks:
-        for i, lm in enumerate(results.left_hand_landmarks.landmark):
-            lh[i] = [lm.x, lm.y, lm.z]
-            
-    if results.right_hand_landmarks:
-        for i, lm in enumerate(results.right_hand_landmarks.landmark):
-            rh[i] = [lm.x, lm.y, lm.z]
-            
-    return np.concatenate([pose, lh, rh])
+
+    hr = hand_det.detect_for_video(mp_img, timestamp_ms)
+    if hr.hand_landmarks:
+        for landmarks, handedness in zip(hr.hand_landmarks, hr.handedness):
+            arr = np.array([[lm.x, lm.y, lm.z] for lm in landmarks])
+            if handedness[0].category_name == "Left":
+                lh = arr
+            else:
+                rh = arr
+
+    return np.concatenate([pose, lh, rh]), pr, hr
+
 
 def main():
-    # 1. Khởi tạo đường dẫn
     script_dir = os.path.dirname(os.path.abspath(__file__))
     weights_path = os.path.join(script_dir, "weights", "best_stgcn_model.pth")
     mapping_path = os.path.join(script_dir, "..", "data", "processed", "label_mapping.json")
-    
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"[*] Đang chạy Real-time Inference trên: {device}")
-    
-    # 2. Tải nhãn từ vựng
+    models_dir   = os.path.join(script_dir, "..", "data", "models")
+
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    elif torch.backends.mps.is_available():
+        device = torch.device('mps')
+    else:
+        device = torch.device('cpu')
+    print(f"[*] Device: {device}")
+
     if not os.path.exists(mapping_path):
-        print(f"[!] Lỗi: Không tìm thấy file {mapping_path}.")
-        print("[!] Vui lòng chạy kịch bản 01_process_dataset.py ở Giai đoạn 1 trước.")
+        print(f"[!] Label mapping not found: {mapping_path}")
         return
+
     idx_to_label = load_label_mapping(mapping_path)
-    num_classes = len(idx_to_label)
-    
-    # 3. Khởi tạo mạng nơ-ron ST-GCN
+    num_classes  = len(idx_to_label)
+
     model = STGCN(in_channels=3, num_classes=num_classes)
     if os.path.exists(weights_path):
         model.load_state_dict(torch.load(weights_path, map_location=device))
-        print("[*] Đã tải thành công trọng số mạng ST-GCN.")
+        print("[*] Weights loaded.")
     else:
-        print("[!] Không tìm thấy trọng số best_stgcn_model.pth. Cần train mô hình trước.")
-    
+        print(f"[!] Weights not found: {weights_path}")
+        return
     model.to(device)
     model.eval()
-    
-    # 4. Cơ chế Cửa sổ trượt (Sliding Window)
+
+    pose_model_path = os.path.join(models_dir, "pose_landmarker_lite.task")
+    hand_model_path = os.path.join(models_dir, "hand_landmarker.task")
+    for path in [pose_model_path, hand_model_path]:
+        if not os.path.exists(path):
+            print(f"[!] Model file missing: {path}")
+            print("[!] Run src/data_processing/02_extract_landmarks.py first.")
+            return
+
+    pose_opts = mp_vision.PoseLandmarkerOptions(
+        base_options=mp_python.BaseOptions(model_asset_path=pose_model_path),
+        running_mode=mp_vision.RunningMode.VIDEO,
+        num_poses=1,
+        min_pose_detection_confidence=0.5,
+        min_pose_presence_confidence=0.5,
+    )
+    hand_opts = mp_vision.HandLandmarkerOptions(
+        base_options=mp_python.BaseOptions(model_asset_path=hand_model_path),
+        running_mode=mp_vision.RunningMode.VIDEO,
+        num_hands=2,
+        min_hand_detection_confidence=0.5,
+        min_hand_presence_confidence=0.5,
+    )
+    pose_det = mp_vision.PoseLandmarker.create_from_options(pose_opts)
+    hand_det = mp_vision.HandLandmarker.create_from_options(hand_opts)
+    print("[*] MediaPipe detectors ready.")
+
     TARGET_FRAMES = 60
+    RESET_THRESHOLD = 15
     frames_queue = deque(maxlen=TARGET_FRAMES)
     normalizer = LandmarkNormalizer(target_frames=TARGET_FRAMES)
-    
+
     current_prediction = "Waiting..."
     current_confidence = 0.0
-    
-    # 5. Mở OpenCV và MediaPipe Holistic
-    try:
-        mp_holistic = mp.solutions.holistic
-        mp_drawing = mp.solutions.drawing_utils
-        has_mp = True
-    except AttributeError:
-        has_mp = False
-        print("[!] Lỗi: Phiên bản Python 3.13+ không còn hỗ trợ mp.solutions của MediaPipe.")
-        print("[!] Sẽ hiển thị Camera ở chế độ báo lỗi.")
-    
-    cap = cv2.VideoCapture(0) # 0 là Camera mặc định của máy tính
-    
+    no_detection_count = 0
+
+    cap = cv2.VideoCapture(0)
     if not cap.isOpened():
-        print("[!] Lỗi: Không thể kết nối với Webcam. Vui lòng kiểm tra lại thiết bị.")
+        print("[!] Cannot open webcam.")
+        pose_det.close()
+        hand_det.close()
         return
-        
-    print("[*] Đã mở Webcam. Hãy giơ tay lên để biểu diễn ngôn ngữ ký hiệu. Bấm 'q' để thoát.")
 
-    if has_mp:
-        with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
-            while cap.isOpened():
-                ret, frame = cap.read()
-                if not ret:
-                    break
-                    
-                # OpenCV đọc ảnh BGR, MediaPipe cần RGB
-                image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                image_rgb.flags.writeable = False
-                results = holistic.process(image_rgb)
-                image_rgb.flags.writeable = True
-                image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
-                
-                # Trích xuất tọa độ
-                landmarks = extract_landmarks(results)
-                
-                # Chỉ ghi nhận vào bộ đệm nếu nhận diện được cơ thể người (chống nhiễu)
-                if np.sum(landmarks[:33]) != 0:
-                    frames_queue.append(landmarks)
+    print("[*] Webcam open. Press 'q' to quit.")
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        timestamp_ms = int(time.time() * 1000)
+        landmarks, pr, hr = extract_landmarks(frame, pose_det, hand_det, timestamp_ms)
+
+        # Draw pose skeleton
+        if pr.pose_landmarks:
+            mp_drawing.draw_landmarks(
+                frame,
+                pr.pose_landmarks[0],
+                PoseLandmarksConnections.POSE_LANDMARKS,
+                landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style(),
+            )
+
+        # Draw hand skeletons
+        for hand_lms in hr.hand_landmarks:
+            mp_drawing.draw_landmarks(
+                frame,
+                hand_lms,
+                HandLandmarksConnections.HAND_CONNECTIONS,
+                landmark_drawing_spec=mp_drawing_styles.get_default_hand_landmarks_style(),
+                connection_drawing_spec=mp_drawing_styles.get_default_hand_connections_style(),
+            )
+
+        if np.sum(landmarks[:33]) == 0:
+            no_detection_count += 1
+            if no_detection_count >= RESET_THRESHOLD:
+                frames_queue.clear()
+                no_detection_count = 0
+        else:
+            no_detection_count = 0
+            frames_queue.append(landmarks)
+
+        if len(frames_queue) == TARGET_FRAMES:
+            frames_np = np.array(frames_queue)
+            norm_frames = normalizer.process(frames_np)
+
+            input_tensor = torch.tensor(
+                np.expand_dims(np.transpose(norm_frames, (2, 0, 1)), axis=0),
+                dtype=torch.float32,
+            ).to(device)
+
+            with torch.no_grad():
+                probs = torch.softmax(model(input_tensor), dim=1)
+                confidence, predicted_class = torch.max(probs, 1)
+                current_confidence = confidence.item()
+                if current_confidence > 0.4:
+                    current_prediction = idx_to_label[predicted_class.item()]
                 else:
-                    if len(frames_queue) > 0:
-                        frames_queue.clear()
-                
-                # 6. Kích hoạt mạng Nơ-ron khi đã thu đủ 60 frames
-                if len(frames_queue) == TARGET_FRAMES:
-                    frames_np = np.array(frames_queue)
-                    
-                    # Chuẩn hóa (tịnh tiến gốc tọa độ, scale theo vai)
-                    norm_frames = normalizer.process(frames_np)
-                    
-                    # Transform shape cho ST-GCN: (T, 75, 3) -> (Batch=1, Channels=3, Frames=60, Nodes=75)
-                    input_tensor = np.transpose(norm_frames, (2, 0, 1))
-                    input_tensor = np.expand_dims(input_tensor, axis=0)
-                    input_tensor = torch.tensor(input_tensor, dtype=torch.float32).to(device)
-                    
-                    # Đưa vào ST-GCN dự đoán
-                    with torch.no_grad():
-                        outputs = model(input_tensor)
-                        probabilities = torch.softmax(outputs, dim=1)
-                        confidence, predicted_class = torch.max(probabilities, 1)
-                        
-                        current_confidence = confidence.item()
-                        if current_confidence > 0.6: # Ngưỡng tự tin 60%
-                            current_prediction = idx_to_label[predicted_class.item()]
-                        else:
-                            current_prediction = "..."
-                            
-                # 7. Render Đồ họa
-                # Vẽ các đường xương
-                mp_drawing.draw_landmarks(image_bgr, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS)
-                mp_drawing.draw_landmarks(image_bgr, results.left_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
-                mp_drawing.draw_landmarks(image_bgr, results.right_hand_landmarks, mp_holistic.HAND_CONNECTIONS)
-                
-                # Vẽ thanh trạng thái
-                cv2.rectangle(image_bgr, (0, 0), (640, 60), (0, 0, 0), -1)
-                
-                # In nhãn
-                text = f'AI: {current_prediction.upper()} ({current_confidence*100:.1f}%)'
-                cv2.putText(image_bgr, text, (15, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
-                
-                # In trạng thái bộ đệm
-                cv2.putText(image_bgr, f'Buffer: {len(frames_queue)}/60', (500, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
-                
-                cv2.imshow('Sign Language AI Demo', image_bgr)
-                
-                # Thoát bằng phím q
-                if cv2.waitKey(10) & 0xFF == ord('q'):
-                    break
-    else:
-        # Chế độ mô phỏng báo lỗi do thiếu MediaPipe
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-            cv2.rectangle(frame, (0, 0), (640, 80), (0, 0, 0), -1)
-            cv2.putText(frame, "PYTHON 3.13 ERROR: mp.solutions unsupported", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-            cv2.putText(frame, "Please use Python 3.10 to run inference.", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-            
-            cv2.imshow('Sign Language AI Demo', frame)
-            if cv2.waitKey(10) & 0xFF == ord('q'):
-                break
+                    current_prediction = "..."
 
+        cv2.rectangle(frame, (0, 0), (640, 60), (0, 0, 0), -1)
+        text = f'AI: {current_prediction.upper()} ({current_confidence * 100:.1f}%)'
+        cv2.putText(frame, text, (15, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
+        cv2.putText(frame, f'Buffer: {len(frames_queue)}/60', (500, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+
+        cv2.imshow('Sign Language AI Demo', frame)
+        if cv2.waitKey(10) & 0xFF == ord('q'):
+            break
+
+    pose_det.close()
+    hand_det.close()
     cap.release()
     cv2.destroyAllWindows()
+
 
 if __name__ == '__main__':
     main()
