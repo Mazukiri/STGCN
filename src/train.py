@@ -16,7 +16,7 @@ def train():
     landmarks_dir = os.path.join(processed_dir, "landmarks")
     
     BATCH_SIZE = 32
-    EPOCHS = 2  # Đặt là 2 chỉ để test nhanh, bạn nên đổi thành 50-100 khi train thật
+    EPOCHS = 5  # Đặt là 5 để train thật ngắn hạn
     LEARNING_RATE = 1e-3
     TARGET_FRAMES = 60
     NUM_CLASSES = 100
